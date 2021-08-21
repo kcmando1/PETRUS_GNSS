@@ -1014,6 +1014,7 @@ def generatePreproFile(fpreprobs, PreproObsInfo):
     # Nothing
 
     # Loop over satellites
+
     for SatLabel, SatPreproObs in PreproObsInfo.items():
         # Prepare outputs
         Outputs = OrderedDict({})
@@ -1043,5 +1044,23 @@ def generatePreproFile(fpreprobs, PreproObsInfo):
             fpreprobs.write(((PreproFmt[i] + " ") % Outputs[result]))
 
         fpreprobs.write("\n")
+        fpreprobs.write("\n")
 
 # End of generatePreproFile
+
+def rejectSatsMinElevation(PreproObsInfo,NVisSats,MaxChannels):
+    #print(PreproObsInfo)
+    y=[]
+    for x in PreproObsInfo:
+        y.append(PreproObsInfo[x]["Elevation"])
+    y.sort()
+    y = y[:(int(NVisSats) - int(MaxChannels))]
+    z=0
+    for x in PreproObsInfo:
+        if z>NVisSats-MaxChannels:
+            break
+        else:
+            if PreproObsInfo[x]["Elevation"]in y:
+                PreproObsInfo[x]["RejectionCause"]=REJECTION_CAUSE["NCHANNELS_GPS"]
+                z=z+1
+

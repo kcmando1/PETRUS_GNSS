@@ -29,14 +29,15 @@ from collections import OrderedDict
 from COMMON import GnssConstants as Const
 from InputOutput import RcvrIdx, ObsIdx, REJECTION_CAUSE
 from InputOutput import FLAG, VALUE, TH, CSNEPOCHS
-import numpy as np
+from InputOutput import rejectSatsMinElevation
+from numpy import *
 from COMMON.Iono import computeIonoMappingFunction
 
 # Preprocessing internal functions
 #-----------------------------------------------------------------------
 
 
-def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo):
+def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
     
     # Purpose: preprocess GNSS raw measurements from OBS file
     #          and generate PREPRO OBS file with the cleaned,
@@ -123,16 +124,36 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo):
         # Get SoD
         SatPreproObsInfo["Sod"] = float(SatObs[ObsIdx["SOD"]])
         # Get DoY
-        SatPreproObsInfo["Doy"] = int(SatObs[ObsIdx["DOY"]])
+        SatPreproObsInfo["Doy"] = float(SatObs[ObsIdx["DOY"]])
+        # Get PRN
+        SatPreproObsInfo["PRN"] = float(SatObs[ObsIdx["PRN"]])
         # Get Elevation
-        # ...
+        SatPreproObsInfo["Elevation"] = float(SatObs[ObsIdx["ELEV"]])
+        #Get Azimuth
+        SatPreproObsInfo["Azimuth"] = float(SatObs[ObsIdx["AZIM"]])
+        #Get C1
+        SatPreproObsInfo["C1"] = float(SatObs[ObsIdx["C1"]])
+        #Get L1
+        SatPreproObsInfo["L1Meters"] = float(SatObs[ObsIdx["L1"]])
+        #Get S1
+        SatPreproObsInfo["S1"] = float(SatObs[ObsIdx["S1"]])
 
         # Prepare output for the satellite
         PreproObsInfo[SatLabel] = SatPreproObsInfo
-
-    # Limit the satellites to the Number of Channels
     # ----------------------------------------------------------
-    # ...
+    # CODE HERE
+    # Limit the satellites to the Number of Channels
+    #Implementation only for gps
+    NVisSats = len(unique(ObsInfo[ObsIdx["PRN"]]))
+
+
+    print("NSats*Epoch="+str(NVisSats))
+    if NVisSats>Conf["NCHANNELS_GPS"]:
+        ObsInfo=rejectSatsMinElevation(PreproObsInfo,NVisSats,Conf["NCHANNELS_GPS"])
+    else:
+        print("no reject")
+    # END of PPVE LOOP
+    # ----------------------------------------------------------
 
     return PreproObsInfo
 

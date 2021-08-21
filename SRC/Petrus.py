@@ -30,11 +30,13 @@ sys.path.insert(0, Common)
 #----------------------------------------------------------------------
 from collections import OrderedDict
 from yaml import dump
+from pandas import read_csv
 from COMMON import GnssConstants as Const
 from InputOutput import readConf
 from InputOutput import processConf
 from InputOutput import readRcvr
 from InputOutput import createOutputFile
+from InputOutput import ObsIdx
 from InputOutput import readObsEpoch
 from InputOutput import generatePreproFile
 from InputOutput import PreproHdr
@@ -124,15 +126,14 @@ for Rcvr in RcvrInfo.keys():
         ObsInfo = [None]
         PrevPreproObsInfo = {}
         for prn in range(1, Const.MAX_NUM_SATS_CONSTEL + 1):
-            PrevPreproObsInfo["G%02d" % prn] = {
+            PrevPreproObsInfo["G%02d" % prn] = {  #this works only for gps, mod G to not hardcoded to work with others
             "L1_n_1": 0.0,           # t-1 Carrier Phase in L1
             "L1_n_2": 0.0,           # t-2 Carrier Phase in L1
             "L1_n_3": 0.0,           # t-3 Carrier Phase in L1
             "t_n_1": 0.0,            # t-1 epoch
             "t_n_2": 0.0,            # t-2 epoch
             "t_n_3": 0.0,            # t-3 epoch
-            "CsBuff": [0] * \
-int(Conf["MIN_NCS_TH"][CSNEPOCHS]),  # Number of consecutive epochs for CS
+            "CsBuff": [0] * int(Conf["MIN_NCS_TH"][CSNEPOCHS]),  # Number of consecutive epochs for CS
             "CsIdx": 0,              # Index of CS detector buffer
             "ResetHatchFilter": 1,   # Flag to reset Hatch filter
             "Ksmooth": 0,            # Hatch filter K
@@ -148,6 +149,10 @@ int(Conf["MIN_NCS_TH"][CSNEPOCHS]),  # Number of consecutive epochs for CS
         } # End of SatPreproObsInfo
 
         # Open OBS file
+        ObsData=read_csv(ObsFile, delim_whitespace=True, skiprows=1, header=None,\
+                         usecols=[ObsIdx["PRN"]])
+
+
         with open(ObsFile, 'r') as fobs:
             # Read header line of OBS file
             fobs.readline()
@@ -161,15 +166,15 @@ int(Conf["MIN_NCS_TH"][CSNEPOCHS]),  # Number of consecutive epochs for CS
 
                     # Read Only One Epoch
                     ObsInfo = readObsEpoch(fobs)
-
                     # If ObsInfo is empty, exit loop
                     if ObsInfo == []:
                         break
 
                     # Preprocess OBS measurements
                     # ----------------------------------------------------------
-                    PreproObsInfo = runPreProcMeas(Conf, RcvrInfo[Rcvr], ObsInfo, PrevPreproObsInfo)
-
+                    #rint("in")
+                    PreproObsInfo = runPreProcMeas(Conf, RcvrInfo[Rcvr], ObsInfo, PrevPreproObsInfo,ObsData)
+                    #print("out")
                     # If PREPRO outputs are requested
                     if Conf["PREPRO_OUT"] == 1:
                         # Generate output file
