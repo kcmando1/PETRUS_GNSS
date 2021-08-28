@@ -1049,7 +1049,7 @@ def generatePreproFile(fpreprobs, PreproObsInfo):
 # End of generatePreproFile
 
 def rejectSatsMinElevation(PreproObsInfo,NVisSats,MaxChannels):
-    #print(PreproObsInfo)
+
     y=[]
     for x in PreproObsInfo:
         y.append(PreproObsInfo[x]["Elevation"])
@@ -1063,4 +1063,5 @@ def rejectSatsMinElevation(PreproObsInfo,NVisSats,MaxChannels):
             if PreproObsInfo[x]["Elevation"]in y:
                 PreproObsInfo[x]["RejectionCause"]=REJECTION_CAUSE["NCHANNELS_GPS"]
                 z=z+1
+
 

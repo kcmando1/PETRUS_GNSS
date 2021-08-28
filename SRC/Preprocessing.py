@@ -84,6 +84,15 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
     # Initialize output
     PreproObsInfo = OrderedDict({})
 
+    dT = 0
+    gapCounter = [Const.MAX_NUM_SATS_CONSTEL]
+    ResetHF = 0
+
+    MaxNoise = Conf["MIN_CNR"][1]
+    MinElevation = Conf["RCVR_MASK"]
+    MaxStep = Conf["MAX_PHASE_RATE_STEP"][1]
+    MaxPSR=Conf["MAX_PSR_OUTRNG"][1]
+
     # Loop over satellites
     for SatObs in ObsInfo:
         # Initialize output info
@@ -147,11 +156,44 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
     NVisSats = len(unique(ObsInfo[ObsIdx["PRN"]]))
 
 
-    print("NSats*Epoch="+str(NVisSats))
+    # print("NSats*Epoch="+str(NVisSats))
     if NVisSats>Conf["NCHANNELS_GPS"]:
-        ObsInfo=rejectSatsMinElevation(PreproObsInfo,NVisSats,Conf["NCHANNELS_GPS"])
-    else:
-        print("no reject")
+        # REQ-010
+        rejectSatsMinElevation(PreproObsInfo,NVisSats,Conf["NCHANNELS_GPS"])
+    for x in range(1, Const.MAX_NUM_SATS_CONSTEL + 1):
+        SatLabel = "G" + "%02d" % int(x)
+        # Check if the satellite is in view
+        # ------------------------------------------------------------------------
+        if not SatLabel in PreproObsInfo:
+            continue
+        # Check if the satellite is valid
+        # ------------------------------------------------------------------------
+        if PreproObsInfo[SatLabel]["ValidL1"] == 0:
+            continue
+
+        #accept only valid sats
+        if PreproObsInfo[SatLabel]["ValidL1"]==1:
+            # reject for bad elevation REQ-NO
+            if (PreproObsInfo[SatLabel]["Elevation"] < MinElevation):
+                PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["NCHANNELS_GPS"]
+                PreproObsInfo[SatLabel]["ValidL1"] = 0
+            # rejects if noise ratio  REQ-020
+            if PreproObsInfo[SatLabel]["S1"] < MaxNoise and Conf["MIN_CNR"][0]:
+                PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["MIN_CNR"]
+                PreproObsInfo[SatLabel]["ValidL1"] = 0
+            # rejects if psr  REQ-030
+            if PreproObsInfo[SatLabel]["C1"] > MaxPSR and Conf["MAX_PSR_OUTRNG"][0]:
+                PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["MIN_CNR"]
+                PreproObsInfo[SatLabel]["ValidL1"] = 0
+            #rejects if data gap REQ-040
+            # if dT > Conf["SAMPLING_RATE"]:
+            #     gapCounter[x]=dT
+            # if gapCounter[x]> Conf["HATCH_GAP_TH"] and PreproObsInfo[SatLabel]["Elevation"] > MinElevation:
+            #     ResetHF=1;
+            #     PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["DATA_GAP"]
+            #     PreproObsInfo[SatLabel]["ValidL1"] = 0
+
+
     # END of PPVE LOOP
     # ----------------------------------------------------------
 

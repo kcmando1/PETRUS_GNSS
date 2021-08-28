@@ -172,7 +172,7 @@ for Rcvr in RcvrInfo.keys():
 
                     # Preprocess OBS measurements
                     # ----------------------------------------------------------
-                    #rint("in")
+                    print("Prepocessing...")
                     PreproObsInfo = runPreProcMeas(Conf, RcvrInfo[Rcvr], ObsInfo, PrevPreproObsInfo,ObsData)
                     #print("out")
                     # If PREPRO outputs are requested
