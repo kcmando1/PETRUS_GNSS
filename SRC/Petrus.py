@@ -159,6 +159,7 @@ for Rcvr in RcvrInfo.keys():
 
             # LOOP over all Epochs of UPOS file
             # ----------------------------------------------------------
+            print("Prepocessing...")
             while not EndOfFile:
 
                 # If ObsInfo is not empty
@@ -172,7 +173,7 @@ for Rcvr in RcvrInfo.keys():
 
                     # Preprocess OBS measurements
                     # ----------------------------------------------------------
-                    print("Prepocessing...")
+
                     PreproObsInfo = runPreProcMeas(Conf, RcvrInfo[Rcvr], ObsInfo, PrevPreproObsInfo,ObsData)
                     #print("out")
                     # If PREPRO outputs are requested

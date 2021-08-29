@@ -85,7 +85,16 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
     PreproObsInfo = OrderedDict({})
 
     dT = 0
-    gapCounter = [Const.MAX_NUM_SATS_CONSTEL]
+    gapCounter ={}
+    satTags=[]
+    zeroes=[0]*(Const.MAX_NUM_SATS_CONSTEL + 1)
+
+
+    for x in range(Const.MAX_NUM_SATS_CONSTEL + 1):
+        satTags.append("G" + "%02d" % int(x))
+    gapCounter=dict(zip(satTags,zeroes))
+
+
     ResetHF = 0
 
     MaxNoise = Conf["MIN_CNR"][1]
@@ -156,7 +165,6 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
     NVisSats = len(unique(ObsInfo[ObsIdx["PRN"]]))
 
 
-    # print("NSats*Epoch="+str(NVisSats))
     if NVisSats>Conf["NCHANNELS_GPS"]:
         # REQ-010
         rejectSatsMinElevation(PreproObsInfo,NVisSats,Conf["NCHANNELS_GPS"])
@@ -177,21 +185,51 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
             if (PreproObsInfo[SatLabel]["Elevation"] < MinElevation):
                 PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["NCHANNELS_GPS"]
                 PreproObsInfo[SatLabel]["ValidL1"] = 0
+
             # rejects if noise ratio  REQ-020
             if PreproObsInfo[SatLabel]["S1"] < MaxNoise and Conf["MIN_CNR"][0]:
                 PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["MIN_CNR"]
                 PreproObsInfo[SatLabel]["ValidL1"] = 0
+
             # rejects if psr  REQ-030
             if PreproObsInfo[SatLabel]["C1"] > MaxPSR and Conf["MAX_PSR_OUTRNG"][0]:
                 PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["MIN_CNR"]
                 PreproObsInfo[SatLabel]["ValidL1"] = 0
             #rejects if data gap REQ-040
-            # if dT > Conf["SAMPLING_RATE"]:
-            #     gapCounter[x]=dT
-            # if gapCounter[x]> Conf["HATCH_GAP_TH"] and PreproObsInfo[SatLabel]["Elevation"] > MinElevation:
-            #     ResetHF=1;
-            #     PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["DATA_GAP"]
-            #     PreproObsInfo[SatLabel]["ValidL1"] = 0
+            validEpoch = PreproObsInfo[SatLabel]["RejectionCause"] is not REJECTION_CAUSE['MASKANGLE']
+            previousValidEpoch = PrevPreproObsInfo[SatLabel]["PrevRej"] is not REJECTION_CAUSE['MASKANGLE']
+            if validEpoch and previousValidEpoch:
+                dT=PreproObsInfo[SatLabel]['Sod'] - PrevPreproObsInfo[SatLabel]['PrevEpoch']
+                if dT > Conf["SAMPLING_RATE"]:
+                    gapCounter[SatLabel]=dT
+
+                if gapCounter[SatLabel]> Conf["HATCH_GAP_TH"] and PreproObsInfo[SatLabel]["Elevation"] > MinElevation:
+                    # print("Satlabel="+str(SatLabel))
+                    # print("SOD="+str(PreproObsInfo[SatLabel]["Sod"]))
+                    # print("gapsize="+str(gapCounter[SatLabel]))
+                    # print("---------")
+                    ResetHF=1
+                    PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["DATA_GAP"]
+                    PreproObsInfo[SatLabel]["ValidL1"] = 0
+
+
+
+            # update prev status for functions
+
+            for y in PreproObsInfo:
+                # Update carrier phase in L1
+                PrevPreproObsInfo[y]['L1_n_3'] = PrevPreproObsInfo[y]['L1_n_2']
+                PrevPreproObsInfo[y]['L1_n_2'] = PrevPreproObsInfo[y]['L1_n_1']
+                PrevPreproObsInfo[y]['L1_n_1'] = PreproObsInfo[y]['L1']
+
+                # Update epoch
+                PrevPreproObsInfo[y]['t_n_3'] = PrevPreproObsInfo[y]['t_n_2']
+                PrevPreproObsInfo[y]['t_n_2'] = PrevPreproObsInfo[y]['t_n_1']
+                PrevPreproObsInfo[y]['t_n_1'] = PreproObsInfo[y]['Sod']
+                if PreproObsInfo[y]['RejectionCause'] is not REJECTION_CAUSE['MASKANGLE']:
+                    # if True:
+                    PrevPreproObsInfo[y]['PrevEpoch'] = PreproObsInfo[y]['Sod']
+                    PrevPreproObsInfo[y]['PrevL1'] = PreproObsInfo[y]['L1']
 
 
     # END of PPVE LOOP
