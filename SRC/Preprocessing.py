@@ -27,7 +27,7 @@ Common = os.path.dirname(os.path.dirname(
 sys.path.insert(0, Common)
 from collections import OrderedDict
 from COMMON import GnssConstants as Const
-from InputOutput import RcvrIdx, ObsIdx, REJECTION_CAUSE
+from InputOutput import RcvrIdx, ObsIdx, REJECTION_CAUSE, checkCycleSlip
 from InputOutput import FLAG, VALUE, TH, CSNEPOCHS
 from InputOutput import rejectSatsMinElevation
 from numpy import *
@@ -94,7 +94,7 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
     for x in range(Const.MAX_NUM_SATS_CONSTEL + 1):
         satTags.append("G" + "%02d" % int(x))
     gapCounter = dict(zip(satTags,zeroes))
-    ResetHF = 0
+    ResetHF = dict(zip(satTags, zeroes))
     MaxNoise = Conf["MIN_CNR"][1]
     MinElevation = Conf["RCVR_MASK"]
     MaxStep = Conf["MAX_PHASE_RATE_STEP"][1]
@@ -208,23 +208,28 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
 
 
             if gapCounter[SatLabel] > Conf["HATCH_GAP_TH"] and PreproObsInfo[SatLabel]["Elevation"] > MinElevation:
-                print("Satlabel="+str(SatLabel))
-                print("SOD="+str(PreproObsInfo[SatLabel]["Sod"]))
-                print("gapsize="+str(gapCounter[SatLabel]))
-                print("---------")
-                ResetHF=1 #REQ-90
+                # print("Satlabel="+str(SatLabel))
+                # print("SOD="+str(PreproObsInfo[SatLabel]["Sod"]))
+                # print("gapsize="+str(gapCounter[SatLabel]))
+                # print("---------")
+                ResetHF[x]=1 #REQ-90
                 PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["DATA_GAP"]
                 PreproObsInfo[SatLabel]["ValidL1"] = 0
 
         # cycle slip implementation
-        FLAG = 0
-        if ResetHF != 1 and Conf["MIN_NCS_TH"][0]:
-            # FLAG=checkCycleSlip(PrevPreproObsInfo[x])
-            FLAG=0
+
+        if ResetHF[SatLabel] != 1 and Conf["MIN_NCS_TH"][0]:
+            
+            FLAG=checkCycleSlip(PreproObsInfo,PrevPreproObsInfo,x,Conf["MIN_NCS_TH"][1])
+
         if FLAG:
+            print('flag')
             PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["CYCLE_SLIP"]
             PreproObsInfo[SatLabel]["ValidL1"] = 0
+        if sum(PrevPreproObsInfo[SatLabel]["CsBuff"]) >= Conf["MIN_NCS_TH"][2]:
+            ResetHF[SatLabel]=1
             # CSBuff[x]=updateCSBuff(CSBuff[x])
+            print('[TESTING][runPreProcMeas]' + ' epoch' + ObsInfo[0][0] + ' Satellite ' + SatLabel + ' HF reset (CS)')
 
 
             # code smooothing REQ-100

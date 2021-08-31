@@ -1063,5 +1063,36 @@ def rejectSatsMinElevation(PreproObsInfo,NVisSats,MaxChannels):
             if PreproObsInfo[x]["Elevation"]in y:
                 PreproObsInfo[x]["RejectionCause"]=REJECTION_CAUSE["NCHANNELS_GPS"]
                 z=z+1
+def checkCycleSlip(PreproObs,PrevPreproObs,PRN,TH):
+    SatLabel = "G" + "%02d" % int(PRN)
+    #time meas
+    t01 = PreproObs[SatLabel]["Sod"] - PrevPreproObs[SatLabel]["t_n_1"]
+    t12 = PrevPreproObs[SatLabel]["t_n_1"] - PrevPreproObs[SatLabel]["t_n_2"]
+    t23 = PrevPreproObs[SatLabel]["t_n_2"] - PrevPreproObs[SatLabel]["t_n_3"]
+    if t23 == 0: return False
+
+    #phase meas
+    CS = PreproObs[SatLabel]["L1"]
+    CS_1 = PrevPreproObs[SatLabel]["L1_n_1"]
+    CS_2 = PrevPreproObs[SatLabel]["L1_n_2"]
+    CS_3 = PrevPreproObs[SatLabel]["L1_n_3"]
+    R1 = float((t01 + t12) * (t01 + t12 + t23)) / (t12 * (t12 + t23))
+    R2 = float(-t01 * (t01 + t12 + t23)) / (t12 * t23)
+    R3 = float(t01 * (t01 + t12)) / ((t12 + t23) * t23)
+    #Residuals meas
+    CsResidual = abs(CS - R1 * CS_1 - R2 * CS_2 - R3 * CS_3)
+    if CsResidual > TH:
+        PrevPreproObs[SatLabel]["CsBuff"][PrevPreproObs[SatLabel]["CsIdx"]] = 1
+        ret= True
+    else:
+        PrevPreproObs[SatLabel]["CsBuff"][PrevPreproObs[SatLabel]["CsIdx"]] = 0
+        ret= False
+    PrevPreproObs[SatLabel]["CsIdx"] += 1
+    PrevPreproObs[SatLabel]["CsIdx"] %= len(PrevPreproObs[SatLabel]["CsBuff"])
+    return ret
+
+
+
+
 
 
