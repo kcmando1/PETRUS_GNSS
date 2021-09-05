@@ -98,7 +98,6 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
     ResetHF = dict(zip(satTags, zeroes))
     MaxNoise = Conf["MIN_CNR"][1]
     MinElevation = Conf["RCVR_MASK"]
-    MaxStep = Conf["MAX_PHASE_RATE_STEP"][1]
     MaxPSR=Conf["MAX_PSR_OUTRNG"][1]
 
     # Loop over satellites
@@ -165,8 +164,7 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
     # Limit the satellites to the Number of Channels
     #Implementation only for gps
     NVisSats = len(unique(ObsInfo[ObsIdx["PRN"]]))
-    T2=0
-    T1=0
+
 
     if NVisSats>Conf["NCHANNELS_GPS"]:
         # REQ-010
@@ -363,15 +361,44 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
                 ResetHF[SatLabel] = 1
                 continue
 
-
-
         #code rate detector REQ-80
-
-
+        try:
+            PreproObsInfo[SatLabel]["RangeRateL1"]=PreproObsInfo[SatLabel]["SmoothC1"]-\
+                                               PrevPreproObsInfo[SatLabel]["PrevSmoothC1"] / dT
+        except ZeroDivisionError:
+            # PreproObsInfo[SatLabel]["RangeRateL1"] = 0
+            None
+        if Conf["MAX_CODE_RATE"][0] == 1 and abs(PreproObsInfo[SatLabel]["RangeRateL1"]) > Conf["MAX_CODE_RATE"][1]:
+            PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["MAX_CODE_RATE"]
+            PreproObsInfo[SatLabel]["ValidL1"] = 0
+            ResetHF[SatLabel] = 1
+            continue
         #code rate step detector REQ-70
+
+        if PrevPreproObsInfo[SatLabel]["PrevRangeRateL1"] is not -1000:
+            try:
+                PreproObsInfo[SatLabel]["RangeRateStepL1"] = PreproObsInfo[SatLabel]["RangeRateStepL1"]- \
+                PrevPreproObsInfo[SatLabel]["PrevRangeRateL1"] / dT
+            except ZeroDivisionError:
+                # PreproObsInfo[SatLabel]["PhaseRateStepL1"] = 0
+                None
+            if Conf["MAX_CODE_RATE_STEP"][0] == 1 and abs(PreproObsInfo[SatLabel]["RangeRateStepL1"]) > \
+                    Conf["MAX_CODE_RATE_STEP"][1]:
+                PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["MAX_CODE_RATE_STEP"]
+                PreproObsInfo[SatLabel]["ValidL1"] = 0
+                ResetHF[SatLabel] = 1
+                continue
 
 
         #update meas smoothing status and hf convergence
+        if PrevPreproObsInfo[SatLabel]["ksmooth"]> Conf["HATCH_STATE_F"]*Conf["HATCH_TIME"] and\
+                PreproObsInfo[SatLabel]["ValidL1"] != 0:
+            PreproObsInfo[SatLabel]["Status"] = 1
+        else:
+            PreproObsInfo[SatLabel]["Status"] = 0
+        #loop updater if not rejected measures so you mantain last "valid" one
+
+
 
 
     #REQ-110 AATR WTF?
@@ -394,6 +421,12 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
         PrevPreproObsInfo[y]['PrevEpoch'] = PreproObsInfo[y]['Sod']
         PrevPreproObsInfo[y]['PrevL1'] = PreproObsInfo[y]['L1']
         PrevPreproObsInfo[y]['PrevRej'] = PreproObsInfo[y]['RejectionCause']
+        PrevPreproObsInfo[y]["PrevSmoothC1"] = PreproObsInfo[y]["SmoothC1"]
+        PrevPreproObsInfo[y]["PrevL1"] = PreproObsInfo[y]["L1"]
+        PrevPreproObsInfo[y]["PrevRangeRateL1"] = PreproObsInfo[y]["RangeRateL1"]
+        PrevPreproObsInfo[y]["PrevPhaseRateL1"] = PreproObsInfo[y]["PhaseRateL1"]
+
+
 
 
     # END of PPVE LOOP

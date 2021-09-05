@@ -1053,6 +1053,7 @@ def rejectSatsMinElevation(PreproObsInfo,NVisSats,MaxChannels):
     y=[]
     for x in PreproObsInfo:
         y.append(PreproObsInfo[x]["Elevation"])
+        PreproObsInfo[x]["ValidL1"] = 1
     y.sort()
     y = y[:(int(NVisSats) - int(MaxChannels))]
     z=0
@@ -1062,49 +1063,8 @@ def rejectSatsMinElevation(PreproObsInfo,NVisSats,MaxChannels):
         else:
             if PreproObsInfo[x]["Elevation"]in y:
                 PreproObsInfo[x]["RejectionCause"]=REJECTION_CAUSE["NCHANNELS_GPS"]
+                PreproObsInfo[x]["ValidL1"] = 0
                 z=z+1
-def checkCycleSlip(PreproObs,PrevPreproObs,PRN,TH):
-    SatLabel = "G" + "%02d" % int(PRN)
-    #time meas
-    t1 = PreproObs[SatLabel]["Sod"] - PrevPreproObs[SatLabel]["t_n_1"]
-    t2 = PrevPreproObs[SatLabel]["t_n_1"] - PrevPreproObs[SatLabel]["t_n_2"]
-    t3 = PrevPreproObs[SatLabel]["t_n_2"] - PrevPreproObs[SatLabel]["t_n_3"]
-
-
-    if t3 == 0: return False
-
-    #phase meas
-    CS = PreproObs[SatLabel]["L1"]
-    CS_1 = PrevPreproObs[SatLabel]["L1_n_1"]
-    CS_2 = PrevPreproObs[SatLabel]["L1_n_2"]
-    CS_3 = PrevPreproObs[SatLabel]["L1_n_3"]
-
-
-
-
-
-    R1 = float((t1 + t2) * (t1 + t2 + t3)) / (t2 * (t2 + t3))
-    R2 = float(-t1 * (t1 + t2 + t3)) / (t2 * t3)
-    R3 = float(t1 * (t1 + t2)) / ((t2 + t3) * t3)
-    #Residuals meas
-    CsResidual = abs(CS - R1 * CS_1 - R2 * CS_2 - R3 * CS_3)
-    if PreproObs[SatLabel]["Sod"] == 6838 and SatLabel == "G01":
-        print("SOD=" + str(PreproObs[SatLabel]["Sod"]))
-        print(CsResidual)
-
-    if PreproObs[SatLabel]["Sod"] == 6842 and SatLabel == "G01":
-        print("SOD=" + str(PreproObs[SatLabel]["Sod"]))
-        print(CsResidual)
-
-    if CsResidual > TH:
-        PrevPreproObs[SatLabel]["CsBuff"][PrevPreproObs[SatLabel]["CsIdx"]] = 1
-        ret= True
-    else:
-        PrevPreproObs[SatLabel]["CsBuff"][PrevPreproObs[SatLabel]["CsIdx"]] = 0
-        ret = False
-    PrevPreproObs[SatLabel]["CsIdx"] += 1
-    PrevPreproObs[SatLabel]["CsIdx"] %= len(PrevPreproObs[SatLabel]["CsBuff"])
-    return ret
 
 
 
