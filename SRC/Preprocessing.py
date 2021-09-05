@@ -331,17 +331,38 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
         try:
             Alpha=dT/SmoothT
         except ZeroDivisionError:
-            Alpha=1
+            Alpha=1#No smooth from previous meas if invalid as 1-alpha results in an avoidance of that effect
         PreproObsInfo[SatLabel]["SmoothC1"]=Alpha*PreproObsInfo[SatLabel]["C1"]+(1-Alpha)* \
             PrevPreproObsInfo[SatLabel]["PrevSmoothC1"]+\
             (PreproObsInfo[SatLabel]["L1"]-PrevPreproObsInfo[SatLabel]["PrevL1"])*Const.GPS_L1_WAVE
 
-
-
         #phase rate check REQ-50
+        try:
+            PreproObsInfo[SatLabel]["PhaseRateL1"]=(PreproObsInfo[SatLabel]["L1"]- \
+                PrevPreproObsInfo[SatLabel]["PrevL1"]) / dT * Const.GPS_L1_WAVE
+        except ZeroDivisionError:
+            PreproObsInfo[SatLabel]["PhaseRateL1"]=0
 
+        if Conf["MAX_PHASE_RATE"][0]==1 and abs(PreproObsInfo[SatLabel]["PhaseRateL1"])>Conf["MAX_PHASE_RATE"][1]:
+            PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["MAX_PHASE_RATE"]
+            PreproObsInfo[SatLabel]["ValidL1"] = 0
+            ResetHF[SatLabel]=1
+            continue
 
-        #phase rate step check REQ-60
+        # phase rate step check REQ-60
+        if PrevPreproObsInfo[SatLabel]["PrevPhaseRateL1"] is not -1000:
+            try:
+                PreproObsInfo[SatLabel]["PhaseRateStepL1"] = PreproObsInfo[SatLabel]["L1"]- \
+                PrevPreproObsInfo[SatLabel]["PrevPhaseRateL1"] / dT
+            except ZeroDivisionError:
+                PreproObsInfo[SatLabel]["PhaseRateStepL1"] = 0
+            if Conf["MAX_PHASE_RATE_STEP"][0] == 1 and abs(PreproObsInfo[SatLabel]["PhaseRateStepL1"]) > \
+                    Conf["MAX_PHASE_RATE_STEP"][1]:
+                PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["MAX_PHASE_RATE_STEP"]
+                PreproObsInfo[SatLabel]["ValidL1"] = 0
+                ResetHF[SatLabel] = 1
+                continue
+
 
 
         #code rate detector REQ-80
@@ -353,7 +374,7 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
         #update meas smoothing status and hf convergence
 
 
-        #REQ-110 AATR WTF?
+    #REQ-110 AATR WTF?
 
 
         # update prev status for functions
