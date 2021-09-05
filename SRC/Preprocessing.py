@@ -157,6 +157,7 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
         # Get L2
         SatPreproObsInfo["L2"] = float(SatObs[ObsIdx["L2"]])
 
+
         # Prepare output for the satellite
         PreproObsInfo[SatLabel] = SatPreproObsInfo
     # ----------------------------------------------------------
@@ -396,14 +397,26 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
             PreproObsInfo[SatLabel]["Status"] = 1
         else:
             PreproObsInfo[SatLabel]["Status"] = 0
-        #loop updater if not rejected measures so you mantain last "valid" one
 
 
 
 
-    #REQ-110 AATR WTF?
 
-
+    #REQ-110 AATR
+    for x in PreproObsInfo:
+        PreproObsInfo[x]["Mpp"]=computeIonoMappingFunction(PreproObsInfo[x]["Elevation"])
+        if PreproObsInfo[x]["ValidL1"]>0 and PreproObsInfo[x]["L2"]>0:
+            PreproObsInfo[x]["GeomFree"]=Const.GPS_L1_WAVE*PreproObsInfo[x]["L1"]-\
+                                         Const.GPS_L2_WAVE*PreproObsInfo[x]["L2"]
+            PreproObsInfo[x]["GeomFree"]=PreproObsInfo[x]["GeomFree"]/(1-Const.GPS_GAMMA_L1L2)
+            if (PrevPreproObsInfo[x]["PrevGeomFree"])>0:
+                dSTEC=(PreproObsInfo[x]["GeomFree"] - PrevPreproObsInfo[x]["PrevGeomFree"]) / \
+                      (PreproObsInfo[x]["Sod"] - PrevPreproObsInfo[x]["PrevGeomFreeEpoch"])
+                dVTEC=dSTEC/PreproObsInfo[x]["Mpp"]
+                PreproObsInfo[x]["VtecRate"]=dVTEC*1000
+                PreproObsInfo[x]["iAATR"]=PreproObsInfo[x]["VtecRate"]/PreproObsInfo[x]["Mpp"]
+        PrevPreproObsInfo[x]["PrevGeomFree"]= PreproObsInfo[x]["GeomFree"]
+        PrevPreproObsInfo[x]["PrevGeomFreeEpoch"]=PreproObsInfo[x]["Sod"]
         # update prev status for functions
 
     for y in PreproObsInfo:
