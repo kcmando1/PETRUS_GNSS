@@ -1066,27 +1066,42 @@ def rejectSatsMinElevation(PreproObsInfo,NVisSats,MaxChannels):
 def checkCycleSlip(PreproObs,PrevPreproObs,PRN,TH):
     SatLabel = "G" + "%02d" % int(PRN)
     #time meas
-    t01 = PreproObs[SatLabel]["Sod"] - PrevPreproObs[SatLabel]["t_n_1"]
-    t12 = PrevPreproObs[SatLabel]["t_n_1"] - PrevPreproObs[SatLabel]["t_n_2"]
-    t23 = PrevPreproObs[SatLabel]["t_n_2"] - PrevPreproObs[SatLabel]["t_n_3"]
-    if t23 == 0: return False
+    t1 = PreproObs[SatLabel]["Sod"] - PrevPreproObs[SatLabel]["t_n_1"]
+    t2 = PrevPreproObs[SatLabel]["t_n_1"] - PrevPreproObs[SatLabel]["t_n_2"]
+    t3 = PrevPreproObs[SatLabel]["t_n_2"] - PrevPreproObs[SatLabel]["t_n_3"]
+
+
+    if t3 == 0: return False
 
     #phase meas
     CS = PreproObs[SatLabel]["L1"]
     CS_1 = PrevPreproObs[SatLabel]["L1_n_1"]
     CS_2 = PrevPreproObs[SatLabel]["L1_n_2"]
     CS_3 = PrevPreproObs[SatLabel]["L1_n_3"]
-    R1 = float((t01 + t12) * (t01 + t12 + t23)) / (t12 * (t12 + t23))
-    R2 = float(-t01 * (t01 + t12 + t23)) / (t12 * t23)
-    R3 = float(t01 * (t01 + t12)) / ((t12 + t23) * t23)
+
+
+
+
+
+    R1 = float((t1 + t2) * (t1 + t2 + t3)) / (t2 * (t2 + t3))
+    R2 = float(-t1 * (t1 + t2 + t3)) / (t2 * t3)
+    R3 = float(t1 * (t1 + t2)) / ((t2 + t3) * t3)
     #Residuals meas
     CsResidual = abs(CS - R1 * CS_1 - R2 * CS_2 - R3 * CS_3)
+    if PreproObs[SatLabel]["Sod"] == 6838 and SatLabel == "G01":
+        print("SOD=" + str(PreproObs[SatLabel]["Sod"]))
+        print(CsResidual)
+
+    if PreproObs[SatLabel]["Sod"] == 6842 and SatLabel == "G01":
+        print("SOD=" + str(PreproObs[SatLabel]["Sod"]))
+        print(CsResidual)
+
     if CsResidual > TH:
         PrevPreproObs[SatLabel]["CsBuff"][PrevPreproObs[SatLabel]["CsIdx"]] = 1
         ret= True
     else:
         PrevPreproObs[SatLabel]["CsBuff"][PrevPreproObs[SatLabel]["CsIdx"]] = 0
-        ret= False
+        ret = False
     PrevPreproObs[SatLabel]["CsIdx"] += 1
     PrevPreproObs[SatLabel]["CsIdx"] %= len(PrevPreproObs[SatLabel]["CsBuff"])
     return ret
