@@ -172,12 +172,15 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
         rejectSatsMinElevation(PreproObsInfo,NVisSats,Conf["NCHANNELS_GPS"])
     for x in range(1, Const.MAX_NUM_SATS_CONSTEL + 1):
         SatLabel = "G" + "%02d" % int(x)
+
+
         # Check if the satellite is in view
         # ------------------------------------------------------------------------
         if not SatLabel in PreproObsInfo:
             continue
         # Check if the satellite is valid
         # ------------------------------------------------------------------------
+
         if PreproObsInfo[SatLabel]["ValidL1"] == 0:
             continue
 
@@ -229,8 +232,6 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
         # cycle slip implementation
 
         if ResetHF[SatLabel] != 1 and Conf["MIN_NCS_TH"][0]:
-            if PreproObsInfo[SatLabel]["Sod"] == 14066 and SatLabel == "G10":
-                dev=4
             # phase meas
             CS = PreproObsInfo[SatLabel]["L1"]
             CS_1 = PrevPreproObsInfo[SatLabel]["L1_n_1"]
@@ -244,14 +245,14 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
             t3 = PrevPreproObsInfo[SatLabel]["t_n_2"] - PrevPreproObsInfo[SatLabel]["t_n_3"]
 
             if PrevPreproObsInfo[SatLabel]["t_n_3"] > 0:
-                R1=R2=R3=0
                 try:
                     R1 = float((t1 + t2) * (t1 + t2 + t3)) / (t2 * (t2 + t3))
                     R2 = float(-t1 * (t1 + t2 + t3)) / (t2 * t3)
                     R3 = float(t1 * (t1 + t2)) / ((t2 + t3) * t3)
                 except ZeroDivisionError:
                     # First iterations, may end up with t1, t2, t3 == 0
-                    None
+                    R1=R2=R3=0
+
                 # Residuals meas
                 CsResidual = abs(CS - R1 * CS_1 - R2 * CS_2 - R3 * CS_3)
 
@@ -301,7 +302,7 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
         #reset hatch filter
         if ResetHF[SatLabel]==1:
             gapCounter[SatLabel]=0
-            PreproObsInfo[SatLabel]["ksmooth"] = 1
+            PreproObsInfo[SatLabel]["Ksmooth"] = 1
             PrevPreproObsInfo[SatLabel]["SmoothC1"]=PreproObsInfo[SatLabel]["C1"]
             PrevPreproObsInfo[SatLabel]["SmoothC1"]=PreproObsInfo[SatLabel]["SmoothC1"]
             PrevPreproObsInfo[SatLabel]["PrevL1"]=PreproObsInfo[SatLabel]["L1"]
@@ -320,21 +321,21 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
             continue
 
             # code smooothing REQ-100
+#-----------------------------------------------------------------------------------------------------------------------
+        PrevPreproObsInfo[SatLabel]["Ksmooth"]= dT + PrevPreproObsInfo[SatLabel]["Ksmooth"]
 
-        PrevPreproObsInfo[SatLabel]["ksmooth"]=+ dT
-
-        if PrevPreproObsInfo[SatLabel]["ksmooth"]<=Conf["HATCH_TIME"]:
-            SmoothT=PrevPreproObsInfo[SatLabel]["ksmooth"]
-        if PrevPreproObsInfo[SatLabel]["ksmooth"]>Conf["HATCH_TIME"]:
+        if PrevPreproObsInfo[SatLabel]["Ksmooth"]<=Conf["HATCH_TIME"]:
+            SmoothT=PrevPreproObsInfo[SatLabel]["Ksmooth"]
+        if PrevPreproObsInfo[SatLabel]["Ksmooth"]>Conf["HATCH_TIME"]:
             SmoothT=Conf["HATCH_TIME"]
         try:
             Alpha=dT/SmoothT
         except ZeroDivisionError:
             Alpha=1#No smooth from previous meas if invalid as 1-alpha results in an avoidance of that effect
-        PreproObsInfo[SatLabel]["SmoothC1"]=Alpha*PreproObsInfo[SatLabel]["C1"]+(1-Alpha)* \
+        PreproObsInfo[SatLabel]["SmoothC1"]=Alpha*PreproObsInfo[SatLabel]["C1"]+(1-Alpha)*( \
             PrevPreproObsInfo[SatLabel]["PrevSmoothC1"]+\
-            (PreproObsInfo[SatLabel]["L1"]-PrevPreproObsInfo[SatLabel]["PrevL1"])*Const.GPS_L1_WAVE
-
+            (PreproObsInfo[SatLabel]["L1"]-PrevPreproObsInfo[SatLabel]["PrevL1"])*Const.GPS_L1_WAVE)
+#-----------------------------------------------------------------------------------------------------------------------
         #phase rate check REQ-50
         try:
             PreproObsInfo[SatLabel]["PhaseRateL1"]=(PreproObsInfo[SatLabel]["L1"]- \
@@ -347,12 +348,12 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
             PreproObsInfo[SatLabel]["ValidL1"] = 0
             ResetHF[SatLabel]=1
             continue
-
+#-----------------------------------------------------------------------------------------------------------------------
         # phase rate step check REQ-60
         if PrevPreproObsInfo[SatLabel]["PrevPhaseRateL1"] is not -1000:
             try:
-                PreproObsInfo[SatLabel]["PhaseRateStepL1"] = PreproObsInfo[SatLabel]["L1"]- \
-                PrevPreproObsInfo[SatLabel]["PrevPhaseRateL1"] / dT
+                PreproObsInfo[SatLabel]["PhaseRateStepL1"] = (PreproObsInfo[SatLabel]["PhaseRateL1"]- \
+                PrevPreproObsInfo[SatLabel]["PrevPhaseRateL1"]) / dT
             except ZeroDivisionError:
                 PreproObsInfo[SatLabel]["PhaseRateStepL1"] = 0
             if Conf["MAX_PHASE_RATE_STEP"][0] == 1 and abs(PreproObsInfo[SatLabel]["PhaseRateStepL1"]) > \
@@ -361,11 +362,10 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
                 PreproObsInfo[SatLabel]["ValidL1"] = 0
                 ResetHF[SatLabel] = 1
                 continue
-
+#-----------------------------------------------------------------------------------------------------------------------
         #code rate detector REQ-80
         try:
-            PreproObsInfo[SatLabel]["RangeRateL1"]=PreproObsInfo[SatLabel]["SmoothC1"]-\
-                                               PrevPreproObsInfo[SatLabel]["PrevSmoothC1"] / dT
+            PreproObsInfo[SatLabel]["RangeRateL1"]=(PreproObsInfo[SatLabel]["SmoothC1"] - PrevPreproObsInfo[SatLabel]["PrevSmoothC1"]) / dT
         except ZeroDivisionError:
             # PreproObsInfo[SatLabel]["RangeRateL1"] = 0
             None
@@ -374,12 +374,12 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
             PreproObsInfo[SatLabel]["ValidL1"] = 0
             ResetHF[SatLabel] = 1
             continue
-        #code rate step detector REQ-70
 
+#-----------------------------------------------------------------------------------------------------------------------
+        # code rate step detector REQ-70
         if PrevPreproObsInfo[SatLabel]["PrevRangeRateL1"] is not -1000:
             try:
-                PreproObsInfo[SatLabel]["RangeRateStepL1"] = PreproObsInfo[SatLabel]["RangeRateStepL1"]- \
-                PrevPreproObsInfo[SatLabel]["PrevRangeRateL1"] / dT
+                PreproObsInfo[SatLabel]["RangeRateStepL1"] = (PreproObsInfo[SatLabel]["RangeRateL1"] - PrevPreproObsInfo[SatLabel]["PrevRangeRateL1"] )/ dT
             except ZeroDivisionError:
                 # PreproObsInfo[SatLabel]["PhaseRateStepL1"] = 0
                 None
@@ -389,18 +389,14 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
                 PreproObsInfo[SatLabel]["ValidL1"] = 0
                 ResetHF[SatLabel] = 1
                 continue
-
+#-----------------------------------------------------------------------------------------------------------------------
 
         #update meas smoothing status and hf convergence
-        if PrevPreproObsInfo[SatLabel]["ksmooth"]> Conf["HATCH_STATE_F"]*Conf["HATCH_TIME"] and\
+        if PrevPreproObsInfo[SatLabel]["Ksmooth"]> Conf["HATCH_STATE_F"]*Conf["HATCH_TIME"] and\
                 PreproObsInfo[SatLabel]["ValidL1"] != 0:
             PreproObsInfo[SatLabel]["Status"] = 1
         else:
             PreproObsInfo[SatLabel]["Status"] = 0
-
-
-
-
 
     #REQ-110 AATR
     for x in PreproObsInfo:

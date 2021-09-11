@@ -179,6 +179,13 @@ for Rcvr in RcvrInfo.keys():
                     # If PREPRO outputs are requested
                     if Conf["PREPRO_OUT"] == 1:
                         # Generate output file
+                        # for y in PreproObsInfo:
+                        #     if PreproObsInfo[y]['ValidL1']==0 and PreproObsInfo[y]['RejectionCause']==0:
+                        #         print("error")
+                        #         print(y)
+                        #         print(PreproObsInfo[y]['Sod'])
+                        #         print("----")
+
                         generatePreproFile(fpreprobs, PreproObsInfo)
 
                     # To be continued in next WP...
@@ -204,7 +211,7 @@ for Rcvr in RcvrInfo.keys():
             PreproObsFile)
 
             # Generate Preprocessing plots
-            # generatePreproPlots(PreproObsFile)
+            #generatePreproPlots(PreproObsFile)
 
     # End of JD loop
 
