@@ -88,7 +88,7 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
 
     satTags=[]
     zeroes=[0]*(Const.MAX_NUM_SATS_CONSTEL + 1)
-    printflag=0
+
 
 
 
@@ -261,30 +261,14 @@ def runPreProcMeas(Conf, Rcvr, ObsInfo, PrevPreproObsInfo, ObsData):
                 else:
                     FLAG = False
                 PrevPreproObsInfo[SatLabel]["CsBuff"][PrevPreproObsInfo[SatLabel]["CsIdx"]] =FLAG
-                if PreproObsInfo[SatLabel]["Sod"] == 39172 and SatLabel == "G28" or\
-                        PreproObsInfo[SatLabel]["Sod"] == 51292 and SatLabel == "G19"or\
-                        PreproObsInfo[SatLabel]["Sod"] == 79282 and SatLabel == "G20":
-                    printflag=1
-                    print("-----")
-                    print("")
-                    print("SOD=" + str(PreproObsInfo[SatLabel]["Sod"]))
-                    print(CsResidual)
-                    print(FLAG)
-
 
                 if FLAG:
                     PreproObsInfo[SatLabel]["ValidL1"] = 0
                     #print('[TESTING][runPreProcMeas]' + ' epoch' + ObsInfo[0][0] + ' Satellite ' + SatLabel + ' HF reset (CS)')
-                    if printflag==1:
-                        print("CSBUF")
-                        print((PrevPreproObsInfo[SatLabel]["CsBuff"][0]))
-                        print((PrevPreproObsInfo[SatLabel]["CsBuff"][1]))
-                        print((PrevPreproObsInfo[SatLabel]["CsBuff"][2]))
-                        printflag=0
                     if sum(PrevPreproObsInfo[SatLabel]["CsBuff"]) >= Conf["MIN_NCS_TH"][2]:
                         PreproObsInfo[SatLabel]["RejectionCause"] = REJECTION_CAUSE["CYCLE_SLIP"]
                         ResetHF[SatLabel]=1
-                        print('[TESTING][runPreProcMeas]' + ' epoch' + ObsInfo[0][0] + ' Satellite ' + SatLabel + ' HF reset (CS)')
+                        # print('[TESTING][runPreProcMeas]' + ' epoch' + ObsInfo[0][0] + ' Satellite ' + SatLabel + ' HF reset (CS)')
                     else:
                         PrevPreproObsInfo[SatLabel]["CsIdx"]=(PrevPreproObsInfo[SatLabel]["CsIdx"]+1)% int(Conf["MIN_NCS_TH"][2])
 

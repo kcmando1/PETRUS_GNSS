@@ -42,7 +42,7 @@ from InputOutput import generatePreproFile
 from InputOutput import PreproHdr
 from InputOutput import CSNEPOCHS
 from Preprocessing import runPreProcMeas
-# from PreprocessingPlots import generatePreproPlots
+from PreprocessingPlots import generatePreproPlots
 from COMMON.Dates import convertJulianDay2YearMonthDay
 from COMMON.Dates import convertYearMonthDay2Doy
 
@@ -211,7 +211,7 @@ for Rcvr in RcvrInfo.keys():
             PreproObsFile)
 
             # Generate Preprocessing plots
-            #generatePreproPlots(PreproObsFile)
+            generatePreproPlots(PreproObsFile)
 
     # End of JD loop
 
