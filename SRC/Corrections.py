@@ -26,8 +26,9 @@ Common = os.path.dirname(os.path.dirname(
 sys.path.insert(0, Common)
 from collections import OrderedDict
 from COMMON import GnssConstants as Const
+from COMMON.Iono import computeIonoMappingFunction
 from InputOutput import RcvrIdx, SatIdx, LosIdx
-from math import sqrt
+from math import sin, sqrt, exp
 import numpy as np
 
 
@@ -169,11 +170,18 @@ def runCorrectMeas(Conf, Rcvr, PreproObsInfo, SatInfo, LosInfo):
             #CODE HERE
             #REQ 010
             if (SatLabel in SatInfo):#Don't ask needs to be here for the code to work
-                if (SatInfo[SatLabel][SatIdx["UDREI"]] < 12):
+                if SatInfo[SatLabel][SatIdx["UDREI"]] < 14:
+                    if SatInfo[SatLabel][SatIdx["UDREI"]] < 12:
+                        SatCorrInfo["Flag"] = 1
+                    else:
+                        SatCorrInfo["Flag"] = 2
+                else:
+                    SatCorrInfo["Flag"] = 0
+                if SatCorrInfo["Flag"] == 1:
                     #Correction of XYZ POS of sats
                     SatCorrInfo["SatZ"] = SatInfo[SatLabel][SatIdx["SAT-Z"]]+SatInfo[SatLabel][SatIdx["LTC-Z"]]
-                    SatCorrInfo["SatZ"] = SatInfo[SatLabel][SatIdx["SAT-Y"]] + SatInfo[SatLabel][SatIdx["LTC-Y"]]
-                    SatCorrInfo["SatZ"] = SatInfo[SatLabel][SatIdx["SAT-X"]] + SatInfo[SatLabel][SatIdx["LTC-X"]]
+                    SatCorrInfo["SatY"] = SatInfo[SatLabel][SatIdx["SAT-Y"]] + SatInfo[SatLabel][SatIdx["LTC-Y"]]
+                    SatCorrInfo["SatX"] = SatInfo[SatLabel][SatIdx["SAT-X"]] + SatInfo[SatLabel][SatIdx["LTC-X"]]
                     #DTR corr
                     dtr = -2 * sqrt(pow(SatInfo[SatLabel][SatIdx["SAT-X"]],2) +
                                     pow(SatInfo[SatLabel][SatIdx["SAT-Y"]],2) +
@@ -187,14 +195,183 @@ def runCorrectMeas(Conf, Rcvr, PreproObsInfo, SatInfo, LosInfo):
                                             + SatInfo[SatLabel][SatIdx["FC"]]
                                             + SatInfo[SatLabel][SatIdx["LTC-B"]])
 
+                    if (SatInfo[SatLabel][SatIdx["RSS"]] == 0):
+                        SatCorrInfo["SigmaFlt"] = ((SatInfo[SatLabel][SatIdx["SIGMAUDRE"]] *
+                                                    SatInfo[SatLabel][SatIdx["DELTAUDRE"]]) +
+                                                    SatInfo[SatLabel][SatIdx["EPS-FC"]] +
+                                                    SatInfo[SatLabel][SatIdx["EPS-RRC"]] +
+                                                    SatInfo[SatLabel][SatIdx["EPS-LTC"]] +
+                                                    SatInfo[SatLabel][SatIdx["EPS-ER"]])
 
-            #END CODE HERE
+                    else:
+                        # Compute root-sum-squared
+                        SatCorrInfo["SigmaFlt"] = (np.sqrt(pow(
+                            SatInfo[SatLabel][SatIdx["SIGMAUDRE"]] * SatInfo[SatLabel][SatIdx["DELTAUDRE"]],2)) +
+                                                  pow(SatInfo[SatLabel][SatIdx["EPS-FC"]],2) +
+                                                  pow(SatInfo[SatLabel][SatIdx["EPS-RRC"]],2) +
+                                                  pow(SatInfo[SatLabel][SatIdx["EPS-LTC"]],2) +
+                                                  pow(SatInfo[SatLabel][SatIdx["EPS-ER"]],2))
+                    # --------------------#
+                    # UISD and Sigma UIRE #
+                    #                     #
+                    #          N          #
+                    #      v2-----v1      #
+                    #      |       |      #
+                    #    W |  IPP  | E    #
+                    #      |       |      #
+                    #      v3-----v4      #
+                    #          S          #
+                    # --------------------#
+                    Lon1 = LosInfo[SatLabel][LosIdx["IGP_NE_LON"]]
+                    Lat1 = LosInfo[SatLabel][LosIdx["IGP_NE_LAT"]]
+                    Tau1 = LosInfo[SatLabel][LosIdx["GIVD_NE"]]
+                    ETau1 = LosInfo[SatLabel][LosIdx["GIVE_NE"]]
 
+                    Lon2 = LosInfo[SatLabel][LosIdx["IGP_NW_LON"]]
+                    Lat2 = LosInfo[SatLabel][LosIdx["IGP_NW_LAT"]]
+                    Tau2 = LosInfo[SatLabel][LosIdx["GIVD_NW"]]
+                    ETau2 = LosInfo[SatLabel][LosIdx["GIVE_NW"]]
+
+                    Lon3 = LosInfo[SatLabel][LosIdx["IGP_SW_LON"]]
+                    Lat3 = LosInfo[SatLabel][LosIdx["IGP_SW_LAT"]]
+                    Tau3 = LosInfo[SatLabel][LosIdx["GIVD_SW"]]
+                    ETau3 = LosInfo[SatLabel][LosIdx["GIVE_SW"]]
+
+                    Lon4 = LosInfo[SatLabel][LosIdx["IGP_SE_LON"]]
+                    Lat4 = LosInfo[SatLabel][LosIdx["IGP_SE_LAT"]]
+                    Tau4 = LosInfo[SatLabel][LosIdx["GIVD_SE"]]
+                    ETau4 = LosInfo[SatLabel][LosIdx["GIVE_SE"]]
+
+                    LatN = Lat1
+                    LonW = Lon2
+                    LatS = Lat3
+                    LonE = Lon4
+
+                    #SQ interpolation
+                    if LosInfo[SatLabel][LosIdx["INTERP"]] == 0:
+                        if abs(SatCorrInfo["IppLat"]) < 85:
+                            Xpp = (SatCorrInfo["IppLon"] - LonW) / (LonE - LonW)
+                            Ypp = (SatCorrInfo["IppLat"] - LatS) / (LatN - LatS)
+                        else:
+                            Ypp = (abs(SatCorrInfo["IppLat"]) - 85.0) / 10.0
+                            Xpp = ((SatCorrInfo["IppLon"] - Lon3) / 90.0) * (1 - 2 * Ypp) + Ypp
+
+                        R1 = Xpp * Ypp
+                        R2 = (1 - Xpp) * Ypp
+                        R3 = (1 - Xpp) * (1 - Ypp)
+                        R4 = Xpp * (1 - Ypp)
+                    # Tr interpolation no v1
+                    else:
+                        if abs(SatCorrInfo["IppLat"]) < 75:
+                            Xpp = (SatCorrInfo["IppLon"] - LonW) / (LonE - LonW)
+                            Ypp = (SatCorrInfo["IppLat"] - LatS) / (LatN - LatS)
+                        else:
+                            Ypp = (abs(SatCorrInfo["IppLat"]) - 85.0) / 10.0
+                            Xpp = ((SatCorrInfo["IppLon"] - Lon3) / 90.0) * (1 - 2 * Ypp) + Ypp
+
+                        R1 = Ypp
+                        R2 = 1 - Xpp - Ypp
+                        R3 = Xpp
+                        R4 = 0
+                        # Tr interpolation no v1
+                        if LosInfo[SatLabel][LosIdx["INTERP"]] == 1:
+                            Tau1 = Tau2
+                            Tau2 = Tau3
+                            Tau3 = Tau4
+
+                            ETau1 = ETau2
+                            ETau2 = ETau3
+                            ETau3 = ETau4
+                        # Tr interpolation no v2
+                        elif LosInfo[SatLabel][LosIdx["INTERP"]] == 2:
+                            Tau1 = Tau3
+                            Tau2 = Tau4
+                            Tau3 = Tau1
+
+                            ETau1 = ETau3
+                            ETau2 = ETau4
+                            ETau3 = ETau1
+
+                        # Tr interpolation no v3
+                        elif LosInfo[SatLabel][LosIdx["INTERP"]] == 3:
+                            Tau1 = Tau4
+                            Tau2 = Tau1
+                            Tau3 = Tau2
+
+                            ETau1 = ETau4
+                            ETau2 = ETau1
+                            ETau3 = ETau2
+                        # Tr interpolation no v4
+                        elif LosInfo[SatLabel][LosIdx["INTERP"]] == 4:
+                            pass
+                        # No interpolate
+                        else:
+                            pass
+
+                    Taupp = (R1 * Tau1) + (R2 * Tau2) + (R3 * Tau3) + (R4 * Tau4)
+                    #UIVE
+                    ETaupp = sqrt((R1 * pow(ETau1,2)) + (R2 * pow(ETau2,2)) + (R3 * pow(ETau3,2)) + (R4 * pow(ETau4,2)))
+                    #Mapping function
+                    Fpp = computeIonoMappingFunction(SatCorrInfo["Elevation"])
+                    #UISD
+                    SatCorrInfo["Uisd"] = round(Fpp * Taupp, 4)
+                    #Sigma UIRE
+                    SatCorrInfo["SigmaUire"] = round(Fpp * ETaupp, 4)
+                    #Sigma tropo
+                    STVE = 0.12
+                    Mpp = 1.001 / sqrt(pow(0.002001 + sin(np.deg2rad(SatCorrInfo["Elevation"])), 2))
+                    SatCorrInfo["SigmaTropo"] = STVE * Mpp
+                    #sigma multipath
+                    if SatCorrInfo["Elevation"] > 2:
+                        SatCorrInfo["SigmaMultipath"] = 0.13 + 0.53 * exp(-SatCorrInfo["Elevation"] / 10.0)
+                    else:
+                        SatCorrInfo["SigmaMultipath"] = 0
+                    #sigma noise
+                    if SatCorrInfo["Elevation"] < float(Conf["ELEV_NOISE_TH"]):
+                        SatCorrInfo["SigmaNoiseDiv"] = 0.36
+                    else:
+                        SatCorrInfo["SigmaNoiseDiv"] = 0.15
+                    #sigma airborne
+                    SatCorrInfo["SigmaAirborne"] = sqrt(pow(SatCorrInfo["SigmaMultipath"],2) + pow(SatCorrInfo["SigmaNoiseDiv"],2))
+
+                    SatCorrInfo["SigmaUere"] = sqrt(
+                        pow(SatCorrInfo["SigmaFlt"], 2) + pow(SatCorrInfo["SigmaUire"], 2) + pow(
+                            SatCorrInfo["SigmaTropo"], 2) + pow(SatCorrInfo["SigmaAirborne"], 2))
+
+                    # Corrected Measurements from previous information
+                    SatCorrInfo["CorrPsr"] = SatCorrInfo["SatClk"] + SatPrepro["SmoothC1"] - SatCorrInfo["Std"] - \
+                                             SatCorrInfo["Uisd"]
+                    # Compute Geometrical Range
+                    SatCoord = np.array([SatCorrInfo["SatZ"], SatCorrInfo["SatY"], SatCorrInfo["SatX"]])
+                    RCVRCoord = np.array(Rcvr[RcvrIdx["XYZ"]])
+                    GeoRangeXYZ = np.subtract(SatCoord, RCVRCoord)
+                    SatCorrInfo["GeomRange"] = np.linalg.norm(GeoRangeXYZ)
+                    # Compute Geometrical Range
+                    SatCorrInfo["PsrResidual"] = SatCorrInfo["CorrPsr"] - SatCorrInfo["GeomRange"]
+
+                    # Compute residuals sum
+                    Weight = 1 / pow(SatCorrInfo["SigmaUere"], 2)
+                    ResSum = ResSum + (Weight * SatCorrInfo["PsrResidual"])
+                    ResN = ResN + Weight
+
+                    # Compute ENT-GPS offset
+                    LTCxyz = np.array([SatInfo[SatLabel][SatIdx["LTC-X"]], (SatInfo[SatLabel][SatIdx["LTC-Y"]]),
+                                       (SatInfo[SatLabel][SatIdx["LTC-Z"]])])
+                    UL = GeoRangeXYZ / SatCorrInfo["GeomRange"]
+                    EntGpsSum += np.dot(LTCxyz, UL) - (
+                                SatInfo[SatLabel][SatIdx["FC"]] + SatInfo[SatLabel][SatIdx["LTC-B"]])
+                    EntGpsN = EntGpsN + 1
             # Prepare output for the satellite
             CorrInfo[SatLabel] = SatCorrInfo
-
         # End of if(SatPrepro["Status"] == 1):
-
     # End of for SatLabel, SatPrepro in PreproObsInfo.items():
+    for SatLabel in CorrInfo:
+        if EntGpsN > 0:
+            # Receiver clock first guess
+            CorrInfo[SatLabel]["RcvrClk"] = ResSum / ResN
+            CorrInfo[SatLabel]["PsrResidual"] = CorrInfo[SatLabel]["PsrResidual"] - CorrInfo[SatLabel]["RcvrClk"]
+            CorrInfo[SatLabel]["EntGps"] = EntGpsSum / EntGpsN
 
     return CorrInfo
+#END CODE HERE
+
